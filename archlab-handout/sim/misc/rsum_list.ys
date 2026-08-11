@@ -1,0 +1,54 @@
+# 2) rsum.ys: Recursively sum linked list elements
+# Write a Y86-64 program rsum.ys that recursively sums the elements of a linked list. This code should
+# be similar to the code in sum.ys, except that it should use a function rsum list that recursively sums a
+# list of numbers, as shown with the C function rsum list in Figure 1. Test your program using the same
+# three-element list you used for testing list.ys.
+
+.pos 0
+    irmovq stack, %rsp
+    call main
+    halt
+
+.align 8
+ele1:
+.quad 0x00a
+.quad ele2
+ele2:
+.quad 0x0b0
+.quad ele3
+ele3:
+.quad 0xc00
+.quad 0
+
+rsum_list:
+    # allocate stack frame
+    pushq %rbp
+    rrmovq %rsp, %rbp
+    irmovq $16, %rax
+    subq %rax, %rsp
+
+    # return 0 if list_ptr is NULL
+    irmovq $0, %rax
+    subq %rax, %rdi
+    je done
+
+    mrmovq (%rdi), %r12 # get ls->val
+    mrmovq 8(%rdi), %rdi # put ls->next to %rdi
+    rmmovq %r12, -8(%rbp)
+    call rsum_list
+    mrmovq -8(%rbp), %r12
+    addq %r12, %rax
+
+done:
+    # deallocate stack frame
+    rrmovq %rbp, %rsp
+    popq %rbp
+    ret
+
+main:
+    irmovq $ele1, %rdi
+    call rsum_list
+    halt
+
+.pos 0x200
+stack:
