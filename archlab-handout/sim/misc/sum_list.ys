@@ -1,0 +1,80 @@
+
+.pos 0
+    irmovq stack, %rsp
+    call main
+    halt
+
+# make clean && make CFLAGS='-Wall -O1 -g -fcommon' LCFLAGS='-O1 -fcommon' yas yis && ./yas sum_list.ys && ./yis sum_list.yo
+
+
+# 1) Write a Y86-64 program sum.ys that iteratively sums the elements of a linked list. Your program should
+# consist of some code that sets up the stack structure, invokes a function, and then halts. In this case,
+# the function should be Y86-64 code for a function (sum list) that is functionally equivalent to the C
+# sum list function in Figure 1. Test your program using the following three-element list:
+
+# Sample linked list // make sure ele1 is aligned to 8 bytes
+.align 8
+ele1:
+.quad 0x00a
+.quad ele2
+ele2:
+.quad 0x0b0
+.quad ele3
+ele3:
+.quad 0xc00
+.quad 0
+
+
+# while (cond) {
+#     body
+# }
+# ==> what i came up with
+# .cond
+#     ...
+#     jne .end 
+# .body
+#     ...
+#     jmp .cond
+# .end
+# ==> according to the book
+# jmp .cond
+# .body
+#     ...
+# .cond
+#     ...
+#     je .body
+
+
+sum_list:
+    pushq %rbp
+    rrmovq %rsp, %rbp
+    # allocate space for local vars
+    irmovq $16, %rax
+    subq %rax, %rsp
+
+    irmovq $0, %rax # initialize sum to 0
+
+    jmp cond
+body:
+    # val += (*ls).val
+    mrmovq (%rdi), %r13
+    addq %r13, %rax
+    # ls = (*ls).next
+    mrmovq 8(%rdi), %rdi
+cond:
+    irmovq $0, %r12
+    subq %r12, %rdi  # check if head pointer is null
+    jne body # if not null, continue loop
+
+    # deallocate space for local vars
+    rrmovq %rbp, %rsp
+    popq %rbp
+    ret
+
+main:
+    irmovq $ele1, %rdi  # load address of the head of the list into %rdi
+    call sum_list  # call the sum_list function
+    halt  # halt the program
+
+.pos 0x200
+stack:
