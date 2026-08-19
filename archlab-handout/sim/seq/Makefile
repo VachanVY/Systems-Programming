@@ -2,22 +2,16 @@
 
 VERSION=std
 
-# Comment this out if you don't have Tcl/Tk on your system
+# Comment this out if you don't have Tcl/Tk on your system.
+# For command-line testing in this lab, leave GUI support disabled.
 
-GUIMODE=-DHAS_GUI
+GUIMODE=
 
-# Modify the following line so that gcc can find the libtcl.so and
-# libtk.so libraries on your system. You may need to use the -L option
-# to tell gcc which directory to look in. Comment this out if you
-# don't have Tcl/Tk.
+# No Tcl/Tk libraries are needed when building in TTY mode.
+TKLIBS=
 
-TKLIBS=-L/usr/lib -ltk -ltcl
-
-# Modify the following line so that gcc can find the tcl.h and tk.h
-# header files on your system. Comment this out if you don't have
-# Tcl/Tk.
-
-TKINC=-isystem /usr/include/tcl8.5
+# No Tcl/Tk headers are needed when building in TTY mode.
+TKINC=
 
 # Modify these two lines to choose your compiler and compile time
 # flags.
