@@ -134,6 +134,7 @@ wordsig W_valM  'mem_wb_curr->valm'	# Memory M value
 ################ Fetch Stage     ###################################
 
 ## What address should instruction be fetched at
+# Signal after `Select PC` Block
 word f_pc = [
 	# Mispredicted branch.  Fetch at incremented PC
 	M_icode == IJXX && !M_Cnd : M_valA;
@@ -158,7 +159,7 @@ word f_ifun = [
 # Is instruction valid?
 bool instr_valid = f_icode in 
 	{ INOP, IHALT, IRRMOVQ, IIRMOVQ, IRMMOVQ, IMRMOVQ,
-	  IOPQ, IJXX, ICALL, IRET, IPUSHQ, IPOPQ };
+	  IOPQ, IJXX, ICALL, IRET, IPUSHQ, IPOPQ, IIADDQ };
 
 # Determine status code for fetched instruction
 word f_stat = [
@@ -170,12 +171,12 @@ word f_stat = [
 
 # Does fetched instruction require a regid byte?
 bool need_regids =
-	f_icode in { IRRMOVQ, IOPQ, IPUSHQ, IPOPQ, 
+	f_icode in { IRRMOVQ, IOPQ, IPUSHQ, IPOPQ, IIADDQ,
 		     IIRMOVQ, IRMMOVQ, IMRMOVQ };
 
 # Does fetched instruction require a constant word?
 bool need_valC =
-	f_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ, IJXX, ICALL };
+	f_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ, IJXX, ICALL, IIADDQ };
 
 # Predict next value of PC
 word f_predPC = [
@@ -187,6 +188,7 @@ word f_predPC = [
 
 
 ## What register should be used as the A source?
+# Indicate which register to use as the A source
 word d_srcA = [
 	D_icode in { IRRMOVQ, IRMMOVQ, IOPQ, IPUSHQ  } : D_rA;
 	D_icode in { IPOPQ, IRET } : RRSP;
@@ -194,20 +196,25 @@ word d_srcA = [
 ];
 
 ## What register should be used as the B source?
+# Indicate which register to use as the B source
 word d_srcB = [
-	D_icode in { IOPQ, IRMMOVQ, IMRMOVQ  } : D_rB;
+	D_icode in { IOPQ, IRMMOVQ, IMRMOVQ, IIADDQ  } : D_rB;
 	D_icode in { IPUSHQ, IPOPQ, ICALL, IRET } : RRSP;
 	1 : RNONE;  # Don't need register
 ];
 
 ## What register should be used as the E destination?
+# Indicate which register to use as the E destination
+# Value which comes out after Execute stage is written back to the register
 word d_dstE = [
-	D_icode in { IRRMOVQ, IIRMOVQ, IOPQ} : D_rB;
+	D_icode in { IRRMOVQ, IIRMOVQ, IOPQ, IIADDQ} : D_rB; # Write back to B
 	D_icode in { IPUSHQ, IPOPQ, ICALL, IRET } : RRSP;
 	1 : RNONE;  # Don't write any register
 ];
 
 ## What register should be used as the M destination?
+# Indicate which register to use as the M destination
+# Value reading from memory is written back to the register
 word d_dstM = [
 	D_icode in { IMRMOVQ, IPOPQ } : D_rA;
 	1 : RNONE;  # Don't write any register
@@ -239,7 +246,7 @@ word d_valB = [
 ## Select input A to ALU
 word aluA = [
 	E_icode in { IRRMOVQ, IOPQ } : E_valA;
-	E_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ } : E_valC;
+	E_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ, IIADDQ } : E_valC;
 	E_icode in { ICALL, IPUSHQ } : -8;
 	E_icode in { IRET, IPOPQ } : 8;
 	# Other instructions don't need ALU
@@ -248,7 +255,7 @@ word aluA = [
 ## Select input B to ALU
 word aluB = [
 	E_icode in { IRMMOVQ, IMRMOVQ, IOPQ, ICALL, 
-		     IPUSHQ, IRET, IPOPQ } : E_valB;
+		     IPUSHQ, IRET, IPOPQ, IIADDQ } : E_valB;
 	E_icode in { IRRMOVQ, IIRMOVQ } : 0;
 	# Other instructions don't need ALU
 ];
@@ -260,7 +267,7 @@ word alufun = [
 ];
 
 ## Should the condition codes be updated?
-bool set_cc = E_icode == IOPQ &&
+bool set_cc = E_icode in { IOPQ, IIADDQ } &&
 	# State changes only during normal operation
 	!m_stat in { SADR, SINS, SHLT } && !W_stat in { SADR, SINS, SHLT };
 
@@ -268,6 +275,9 @@ bool set_cc = E_icode == IOPQ &&
 word e_valA = E_valA;    # Pass valA through stage
 
 ## Set dstE to RNONE in event of not-taken conditional move
+# cmove has the same icode as rrmovq, 
+# if the CC are not set, no need to make the move
+# else make the move
 word e_dstE = [
 	E_icode == IRRMOVQ && !e_Cnd : RNONE;
 	1 : E_dstE;
@@ -276,6 +286,7 @@ word e_dstE = [
 ################ Memory Stage ######################################
 
 ## Select memory address
+# Memory address to read or write from
 word mem_addr = [
 	M_icode in { IRMMOVQ, IPUSHQ, ICALL, IMRMOVQ } : M_valE;
 	M_icode in { IPOPQ, IRET } : M_valA;
@@ -290,6 +301,8 @@ bool mem_write = M_icode in { IRMMOVQ, IPUSHQ, ICALL };
 
 #/* $begin pipe-m_stat-hcl */
 ## Update the status
+# if error in memory stage, set status to SADR
+# else just propagate the status
 word m_stat = [
 	dmem_error : SADR;
 	1 : M_stat;
@@ -331,6 +344,7 @@ bool F_stall =
 bool D_stall = 
 	# Conditions for a load/use hazard
 	E_icode in { IMRMOVQ, IPOPQ } &&
+	# Am I using a register in decode stage which was written to from memory in execute stage?
 	 E_dstM in { d_srcA, d_srcB };
 
 bool D_bubble =

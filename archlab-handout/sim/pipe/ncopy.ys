@@ -3,7 +3,7 @@
 # ncopy.ys - Copy a src block of len words to dst.
 # Return the number of positive words (>0) contained in src.
 #
-# Include your name and ID here.
+# Include your name and ID here. Name: Vachan, ID: LOL
 #
 # Describe how and why you modified the baseline code.
 #
@@ -15,24 +15,75 @@ ncopy:
 
 ##################################################################
 # You can modify this portion
-	# Loop header
-	xorq %rax,%rax		# count = 0;
-	andq %rdx,%rdx		# len <= 0?
-	jle Done		# if so, goto Done:
+# word_t ncopy(word_t *src, word_t *dst, word_t len)
+# {
+#     word_t count = 0;
+#     word_t val;
+#
+#     if (len <= 0)
+#         return count;
+#
+#     if (len & 1) {
+#         val = *src++;
+#         *dst++ = val;
+#         if (val > 0)
+#             count++;
+#         len--;
+#         if (len == 0)
+#             return count;
+#     }
+#
+#     while (len > 0) {
+#         val = *src++;
+#         *dst++ = val;
+#         if (val > 0)
+#             count++;
+#
+#         val = *src++;
+#         *dst++ = val;
+#         if (val > 0)
+#             count++;
+#
+#         len -= 2;
+#     }
+#
+#     return count;
+# }
 
-Loop:	mrmovq (%rdi), %r10	# read val from src...
-	rmmovq %r10, (%rsi)	# ...and store it to dst
-	andq %r10, %r10		# val <= 0?
-	jle Npos		# if so, goto Npos:
-	irmovq $1, %r10
-	addq %r10, %rax		# count++
-Npos:	irmovq $1, %r10
-	subq %r10, %rdx		# len--
-	irmovq $8, %r10
-	addq %r10, %rdi		# src++
-	addq %r10, %rsi		# dst++
-	andq %rdx,%rdx		# len > 0?
-	jg Loop			# if so, goto Loop:
+	# 2x loop unrolling
+	xorq %rax,%rax		# count = 0
+	andq %rdx,%rdx		# len <= 0?
+	jle Done		# if so, goto Done
+
+	irmovq $1,%r9		# handle odd len: process one element first
+	rrmovq %rdx,%r8
+	andq %r9,%r8
+	je Loop2
+	mrmovq (%rdi),%r10
+	rmmovq %r10,(%rsi)
+	andq %r10,%r10
+	jle OddDone
+	iaddq $1,%rax
+OddDone:
+	iaddq $8,%rdi
+	iaddq $8,%rsi
+	iaddq $-1,%rdx
+	je Done
+
+Loop2:	mrmovq (%rdi),%r10
+	rmmovq %r10,(%rsi)
+	andq %r10,%r10
+	jle Npos1
+	iaddq $1,%rax
+Npos1:	mrmovq 8(%rdi),%r11
+	rmmovq %r11,8(%rsi)
+	andq %r11,%r11
+	jle Npos2
+	iaddq $1,%rax
+Npos2:	iaddq $16,%rdi
+	iaddq $16,%rsi
+	iaddq $-2,%rdx
+	jg Loop2
 ##################################################################
 # Do not modify the following section of code
 # Function epilogue.

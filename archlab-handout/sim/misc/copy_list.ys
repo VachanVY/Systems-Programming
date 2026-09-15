@@ -1,0 +1,87 @@
+# 3) copy.ys: Copy a source block to a destination block
+# Write a program (copy.ys) that copies a block of words from one part of memory to another (non-
+# overlapping area) area of memory, computing the checksum (Xor) of all the words copied.
+# Your program should consist of code that sets up a stack frame, invokes a function copy block, and
+# then halts. The function should be functionally equivalent to the C function copy block shown in Figure
+# Figure 1. Test your program using the following three-element source and destination blocks:
+
+# make clean && make CFLAGS='-Wall -O1 -g -fcommon' LCFLAGS='-O1 -fcommon' yas yis && ./yas copy_list.ys && ./yis copy_list.yo
+
+.pos 0
+    irmovq stack, %rsp
+    call main
+    halt
+
+# Source block
+.align 8
+src:
+.quad 0x00a
+.quad 0x0b0
+.quad 0xc00
+# Destination block
+dest:
+.quad 0x111
+.quad 0x222
+.quad 0x333
+
+# while(cond)
+#    ...
+# ==>
+#    jmp cond
+# body:
+#    ...
+# cond:
+#    ...
+#    je body
+
+copy_block:
+    # rdi: source address
+    # rsi: destination address
+    # rcx: number of words to copy
+    # rax: checksum (Xor of all words copied)
+
+    # allocate stack
+    pushq %rbp
+    rrmovq %rsp, %rbp
+
+    # function body
+    irmovq $0, %rax # result
+
+    jmp cond
+body:
+    # long val = *src; src++;
+    mrmovq (%rdi), %r11
+    irmovq $8, %r10
+    addq %r10, %rdi
+    # *dest = val; dest++;
+    rmmovq %r11, (%rsi)
+    addq %r10, %rsi
+    # result ^= val;
+    xorq %r11, %rax
+    # len--;
+    irmovq $1, %r10
+    subq %r10, %rcx
+
+cond:
+    # if (len > 0)
+    irmovq $0, %r10
+    subq %r10, %rcx # rcx - 0
+    jg body
+
+    # deallocate stack
+    rrmovq %rbp, %rsp
+    popq %rbp
+    ret
+
+main:
+    # set up arguments for copy_block
+    irmovq $src, %rdi # source address
+    irmovq $dest, %rsi # destination address
+    irmovq $3, %rcx # number of words to copy
+
+    call copy_block
+
+    halt
+
+.pos 0x200
+stack:
